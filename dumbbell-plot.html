@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>สร้างกราฟ Dumbbell Plot</title>
+<style>
+:root{
+  --bg:#eef1f4; --card:#ffffff; --ink:#1d2733; --muted:#5d6b7a; --line:#d5dbe2;
+  --accent:#1f5f99; --accent-ink:#ffffff; --danger:#b42318;
+  --font:"Sarabun","Noto Sans Thai","Leelawadee UI",Tahoma,"Segoe UI",sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);font-size:16px;line-height:1.6}
+main{max-width:920px;margin:0 auto;padding:28px 16px 56px}
+h1{font-size:26px;margin:0 0 4px;font-weight:700}
+.lead{margin:0 0 22px;color:var(--muted)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:20px;margin-bottom:18px}
+label.title{display:block;font-weight:600;margin-bottom:4px}
+input{font:inherit;color:var(--ink);background:#fff;border:1px solid var(--line);border-radius:6px;padding:8px 10px;width:100%;min-width:0}
+input:focus-visible,button:focus-visible{outline:3px solid #8bb8e0;outline-offset:1px}
+.opts{display:flex;flex-wrap:wrap;gap:16px 24px;align-items:flex-end;margin-top:14px}
+.opts .unit{flex:1 1 200px;max-width:280px}
+.opts .chk{display:flex;align-items:center;gap:8px;padding-bottom:8px;cursor:pointer}
+.opts .chk input{width:18px;height:18px;padding:0}
+.head,.row{display:grid;grid-template-columns:20px minmax(120px,2fr) minmax(90px,1fr) minmax(90px,1fr) 40px;gap:10px;align-items:center}
+.head{font-weight:600;font-size:14px;color:var(--muted);margin:16px 0 6px}
+.row{margin-bottom:8px}
+.sw{width:16px;height:16px;border-radius:50%;display:block}
+button{font:inherit;cursor:pointer;border-radius:6px;border:1px solid var(--line);background:#fff;color:var(--ink);padding:9px 16px}
+button:hover{background:#f3f6f9}
+button.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:600}
+button.primary:hover{background:#184d7e}
+button[aria-pressed="true"]{background:#e6f0fa;border-color:var(--accent);color:var(--accent);font-weight:600}
+button.del{padding:7px 0;width:40px;color:var(--danger)}
+.actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}
+#msg{color:var(--danger);min-height:1.6em;margin:10px 0 0}
+#result{display:none}
+canvas{width:100%;height:auto;display:block;border:1px solid var(--line);border-radius:6px;background:#fff}
+@media (max-width:560px){
+  .head,.row{grid-template-columns:16px minmax(90px,2fr) minmax(70px,1fr) minmax(70px,1fr) 36px;gap:6px}
+  button.del{width:36px}
+}
+</style>
+</head>
+<body>
+<main>
+  <h1>สร้างกราฟ Dumbbell Plot</h1>
+  <p class="lead">กรอกชื่อกลุ่ม จุดเริ่มต้น และจุดสิ้นสุด แล้วกดประมวลผล</p>
+
+  <section class="card">
+    <label class="title" for="chartTitle">ชื่อกราฟ (ไม่ใส่ก็ได้)</label>
+    <input id="chartTitle" type="text" placeholder="เช่น คะแนนความพึงพอใจก่อนและหลังปรับปรุง">
+
+    <div class="opts">
+      <div class="unit">
+        <label class="title" for="unitInput">หน่วยของตัวเลข (ไม่ใส่ก็ได้)</label>
+        <input id="unitInput" type="text" placeholder="เช่น ปี, คะแนน, บาท, %">
+      </div>
+      <div class="unit">
+        <label class="title" for="startLabel">ชื่อจุดเริ่มต้น (ไม่ใส่ก็ได้)</label>
+        <input id="startLabel" type="text" placeholder="เช่น ก่อน, ปี 2563">
+      </div>
+      <div class="unit">
+        <label class="title" for="endLabel">ชื่อจุดสิ้นสุด (ไม่ใส่ก็ได้)</label>
+        <input id="endLabel" type="text" placeholder="เช่น หลัง, ปี 2567">
+      </div>
+      <label class="chk" for="avgChk">
+        <input id="avgChk" type="checkbox">
+        <span>แสดงเส้นค่าเฉลี่ยของข้อมูลทั้งหมด</span>
+      </label>
+    </div>
+
+    <div class="head" aria-hidden="true"><span></span><span>ชื่อกลุ่ม</span><span id="headS">จุดเริ่มต้น</span><span id="headE">จุดสิ้นสุด</span><span></span></div>
+    <div id="rows"></div>
+
+    <div class="actions">
+      <button type="button" id="addBtn">+ เพิ่มกลุ่ม</button>
+      <button type="button" id="runBtn" class="primary">ประมวลผล</button>
+      <button type="button" id="resetBtn">รีเซ็ตข้อมูล</button>
+    </div>
+    <p id="msg" role="alert"></p>
+  </section>
+
+  <section class="card" id="result">
+    <canvas id="chart" role="img" aria-label="กราฟ Dumbbell Plot ที่สร้างจากข้อมูลที่กรอก"></canvas>
+    <div class="actions">
+      <button type="button" id="langBtn" aria-pressed="false">ภาษาในกราฟ: ไทย</button>
+      <button type="button" id="diffBtn" aria-pressed="false">แสดงส่วนต่าง: ปิด</button>
+      <button type="button" id="dlBtn" class="primary">ดาวน์โหลดเป็น PNG</button>
+    </div>
+  </section>
+</main>
+
+<script>
+const COLORS=['#2563eb','#e4572e','#12a594','#d9a40a','#c2418b','#3f8f2f','#6d4fd1','#d64545','#0891b2','#7c5a3a'];
+const FONT='"Sarabun","Noto Sans Thai","Leelawadee UI",Tahoma,sans-serif';
+const rowsEl=document.getElementById('rows');
+const msgEl=document.getElementById('msg');
+const canvas=document.getElementById('chart');
+const resultEl=document.getElementById('result');
+let colorCounter=0;
+let showDiff=false;
+let lang='th';
+const I18N={
+  th:{start:'จุดเริ่มต้น',end:'จุดสิ้นสุด',light:'(สีอ่อน)',dark:'(สีเข้ม)',unit:'หน่วย: ',avg:'ค่าเฉลี่ย ',diff:'ส่วนต่าง',grp:'กลุ่ม '},
+  en:{start:'Start',end:'End',light:'(light)',dark:'(dark)',unit:'Unit: ',avg:'Average ',diff:'Difference',grp:'Group '}
+};
+function chartLabels(){
+  const T=I18N[lang];
+  return {
+    s:document.getElementById('startLabel').value.trim()||T.start,
+    e:document.getElementById('endLabel').value.trim()||T.end
+  };
+}
+function setLang(v){
+  lang=v;
+  const b=document.getElementById('langBtn');
+  b.setAttribute('aria-pressed',v==='en'?'true':'false');
+  b.textContent='ภาษาในกราฟ: '+(v==='en'?'English':'ไทย');
+}
+function labels(){
+  return {
+    s:document.getElementById('startLabel').value.trim()||'จุดเริ่มต้น',
+    e:document.getElementById('endLabel').value.trim()||'จุดสิ้นสุด'
+  };
+}
+function applyLabels(){
+  const L=labels();
+  document.getElementById('headS').textContent=L.s;
+  document.getElementById('headE').textContent=L.e;
+  rowsEl.querySelectorAll('.s').forEach(function(i){i.setAttribute('aria-label',L.s);});
+  rowsEl.querySelectorAll('.e').forEach(function(i){i.setAttribute('aria-label',L.e);});
+}
+function setDiff(v){
+  showDiff=v;
+  const b=document.getElementById('diffBtn');
+  b.setAttribute('aria-pressed',v?'true':'false');
+  b.textContent='แสดงส่วนต่าง: '+(v?'เปิด':'ปิด');
+}
+
+function addRow(focus){
+  const color=COLORS[colorCounter++%COLORS.length];
+  const row=document.createElement('div');
+  row.className='row';
+  row.dataset.color=color;
+  row.innerHTML='<span class="sw" style="background:'+color+'"></span>'+
+    '<input type="text" class="n" placeholder="ชื่อกลุ่ม" aria-label="ชื่อกลุ่ม">'+
+    '<input type="number" step="any" class="s" placeholder="เริ่มต้น" aria-label="จุดเริ่มต้น">'+
+    '<input type="number" step="any" class="e" placeholder="สิ้นสุด" aria-label="จุดสิ้นสุด">'+
+    '<button type="button" class="del" aria-label="ลบกลุ่มนี้">×</button>';
+  row.querySelector('.del').onclick=function(){
+    if(rowsEl.children.length>1) row.remove();
+    else{row.querySelectorAll('input').forEach(function(i){i.value='';});}
+  };
+  rowsEl.appendChild(row);
+  applyLabels();
+  if(focus) row.querySelector('.n').focus();
+}
+
+function resetAll(){
+  rowsEl.innerHTML='';
+  colorCounter=0;
+  for(let i=0;i<3;i++) addRow(false);
+  document.getElementById('chartTitle').value='';
+  document.getElementById('unitInput').value='';
+  document.getElementById('avgChk').checked=false;
+  document.getElementById('startLabel').value='';
+  document.getElementById('endLabel').value='';
+  setDiff(false);
+  setLang('th');
+  applyLabels();
+  msgEl.textContent='';
+  resultEl.style.display='none';
+  canvas.getContext('2d').clearRect(0,0,canvas.width,canvas.height);
+}
+
+function readData(){
+  const items=[];
+  let bad=false;
+  Array.from(rowsEl.children).forEach(function(row,idx){
+    const name=row.querySelector('.n').value.trim();
+    const sRaw=row.querySelector('.s').value.trim();
+    const eRaw=row.querySelector('.e').value.trim();
+    if(!name&&!sRaw&&!eRaw) return;
+    const s=parseFloat(sRaw), e=parseFloat(eRaw);
+    if(isNaN(s)||isNaN(e)){bad=true;return;}
+    items.push({name:name||(I18N[lang].grp+(idx+1)),s:s,e:e,color:row.dataset.color});
+  });
+  return {items:items,bad:bad};
+}
+
+let useComma=false;
+function fmt(v){
+  v=+v.toFixed(2);
+  return useComma?v.toLocaleString('en-US',{maximumFractionDigits:2}):String(v);
+}
+
+function niceStep(raw){
+  const p=Math.pow(10,Math.floor(Math.log10(raw)));
+  const f=raw/p;
+  return (f<=1?1:f<=2?2:f<=5?5:10)*p;
+}
+
+function tint(hex,t){
+  const n=parseInt(hex.slice(1),16);
+  const r=(n>>16)&255,g=(n>>8)&255,b=n&255;
+  const m=function(c){return Math.round(c+(255-c)*t);};
+  return 'rgb('+m(r)+','+m(g)+','+m(b)+')';
+}
+
+function fitText(ctx,text,maxW){
+  if(ctx.measureText(text).width<=maxW) return text;
+  while(text.length>1&&ctx.measureText(text+'…').width>maxW) text=text.slice(0,-1);
+  return text+'…';
+}
+
+function draw(items,title,unit,showAvg,diffOn,L){
+  const W=900, rowH=52, diffW=diffOn?120:0, right=48+diffW, bottom=76, scale=2;
+  const top=(title?92:72)+(showAvg?20:0);
+  const H=top+items.length*rowH+bottom;
+  canvas.width=W*scale; canvas.height=H*scale;
+  const ctx=canvas.getContext('2d');
+  ctx.setTransform(scale,0,0,scale,0,0);
+  ctx.fillStyle='#ffffff'; ctx.fillRect(0,0,W,H);
+
+  ctx.font='15px '+FONT;
+  let maxName=0;
+  items.forEach(function(it){maxName=Math.max(maxName,ctx.measureText(it.name).width);});
+  const left=Math.min(240,Math.max(100,maxName+36));
+
+  let lo=Infinity,hi=-Infinity;
+  items.forEach(function(it){lo=Math.min(lo,it.s,it.e);hi=Math.max(hi,it.s,it.e);});
+  const yearLike=items.every(function(it){
+    return [it.s,it.e].every(function(v){return Number.isInteger(v)&&v>=1000&&v<=2999;});
+  });
+  useComma=!yearLike;
+  if(lo===hi){lo-=1;hi+=1;}
+  const step=niceStep((hi-lo)/6);
+  lo=Math.floor(lo/step)*step; hi=Math.ceil(hi/step)*step;
+  const x0=left, x1=W-right;
+  const X=function(v){return x0+(v-lo)/(hi-lo)*(x1-x0);};
+  const plotBottom=top+items.length*rowH;
+
+  if(title){
+    ctx.fillStyle='#1d2733'; ctx.font='bold 21px '+FONT; ctx.textAlign='left'; ctx.textBaseline='alphabetic';
+    ctx.fillText(fitText(ctx,title,W-48),24,38);
+  }
+
+  const ly=title?70:38;
+  ctx.textAlign='left'; ctx.font='13px '+FONT; ctx.fillStyle='#5d6b7a';
+  const T=I18N[lang];
+  const legS=L.s+' '+T.light, legE=L.e+' '+T.dark;
+  const legSW=ctx.measureText(legS).width;
+  ctx.beginPath(); ctx.arc(left+6,ly-4,6,0,Math.PI*2);
+  ctx.fillStyle='#d3d9e0'; ctx.fill(); ctx.strokeStyle='#5d6b7a'; ctx.lineWidth=1.5; ctx.stroke();
+  ctx.fillStyle='#5d6b7a'; ctx.fillText(legS,left+18,ly);
+  const lx2=left+18+legSW+24;
+  ctx.beginPath(); ctx.arc(lx2+6,ly-4,6,0,Math.PI*2);
+  ctx.fillStyle='#5d6b7a'; ctx.fill();
+  ctx.fillText(legE,lx2+18,ly);
+
+  ctx.textAlign='center'; ctx.font='12px '+FONT;
+  const eps=step/1000;
+  for(let v=lo;v<=hi+eps;v+=step){
+    const x=X(v);
+    ctx.strokeStyle='#e3e7ec'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(x,top-8); ctx.lineTo(x,plotBottom); ctx.stroke();
+    ctx.fillStyle='#5d6b7a'; ctx.fillText(fmt(+v.toFixed(10)),x,plotBottom+22);
+  }
+  ctx.strokeStyle='#aab3bd'; ctx.beginPath(); ctx.moveTo(x0,plotBottom); ctx.lineTo(x1,plotBottom); ctx.stroke();
+
+  if(unit){
+    ctx.textAlign='center'; ctx.font='13px '+FONT; ctx.fillStyle='#5d6b7a';
+    ctx.fillText(T.unit+unit,(x0+x1)/2,plotBottom+48);
+  }
+
+  if(showAvg){
+    let sum=0;
+    items.forEach(function(it){sum+=it.s+it.e;});
+    const avg=sum/(items.length*2);
+    const ax=X(avg);
+    ctx.save();
+    ctx.setLineDash([7,5]); ctx.strokeStyle='#1d2733'; ctx.lineWidth=1.5; ctx.lineCap='butt';
+    ctx.beginPath(); ctx.moveTo(ax,top-8); ctx.lineTo(ax,plotBottom); ctx.stroke();
+    ctx.restore();
+    const txt=T.avg+fmt(avg)+(unit?' '+unit:'');
+    ctx.font='13px '+FONT; ctx.fillStyle='#1d2733'; ctx.textBaseline='alphabetic';
+    const tw=ctx.measureText(txt).width;
+    const maxR=diffOn?x1+30:W-8;
+    if(ax+tw/2>maxR){ctx.textAlign='right';ctx.fillText(txt,maxR,top-14);}
+    else if(ax-tw/2<8){ctx.textAlign='left';ctx.fillText(txt,8,top-14);}
+    else{ctx.textAlign='center';ctx.fillText(txt,ax,top-14);}
+  }
+
+  if(diffOn){
+    const bx=W-diffW-8;
+    ctx.fillStyle='#f3f6f9'; ctx.fillRect(bx,top-30,diffW,plotBottom-top+30);
+    ctx.textAlign='right'; ctx.textBaseline='alphabetic';
+    ctx.font='bold 13px '+FONT; ctx.fillStyle='#1d2733';
+    ctx.fillText(T.diff,W-20,top-12);
+    if(unit){ctx.font='11px '+FONT; ctx.fillStyle='#5d6b7a'; ctx.fillText('('+fitText(ctx,unit,diffW-30)+')',W-20,top+2);}
+  }
+
+  items.forEach(function(it,i){
+    const cy=top+i*rowH+rowH/2;
+    const xs=X(it.s), xe=X(it.e);
+
+    ctx.textAlign='right'; ctx.font='15px '+FONT; ctx.fillStyle='#1d2733';
+    ctx.fillText(fitText(ctx,it.name,left-24),left-16,cy+5);
+
+    ctx.strokeStyle=it.color; ctx.globalAlpha=0.55; ctx.lineWidth=4; ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(xs,cy); ctx.lineTo(xe,cy); ctx.stroke();
+    ctx.globalAlpha=1;
+
+    ctx.beginPath(); ctx.arc(xs,cy,9,0,Math.PI*2);
+    ctx.fillStyle=tint(it.color,0.6); ctx.fill();
+    ctx.strokeStyle=it.color; ctx.lineWidth=2; ctx.stroke();
+
+    ctx.beginPath(); ctx.arc(xe,cy,9,0,Math.PI*2);
+    ctx.fillStyle=it.color; ctx.fill();
+
+    ctx.font='12px '+FONT; ctx.fillStyle='#1d2733'; ctx.textAlign='center';
+    if(it.s===it.e){
+      ctx.fillText(fmt(it.s),xs,cy-16);
+    }else{
+      const close=Math.abs(xs-xe)<44;
+      ctx.fillText(fmt(it.s),xs,cy-16);
+      ctx.fillText(fmt(it.e),xe,close?cy+26:cy-16);
+    }
+    if(diffOn){
+      const d=+(it.e-it.s).toFixed(2);
+      const t=(d>0?'+':d<0?'−':'')+fmt(Math.abs(d));
+      ctx.font='bold 14px '+FONT; ctx.textAlign='right';
+      ctx.fillStyle=d>0?'#1a7f37':d<0?'#b42318':'#5d6b7a';
+      ctx.fillText(fitText(ctx,t,diffW-16),W-20,cy+5);
+    }
+  });
+}
+
+document.getElementById('addBtn').onclick=function(){addRow(true);};
+document.getElementById('resetBtn').onclick=resetAll;
+
+function render(scroll){
+  const r=readData();
+  if(r.bad){msgEl.textContent='กรุณากรอกจุดเริ่มต้นและจุดสิ้นสุดเป็นตัวเลขให้ครบทุกกลุ่มที่ใส่ข้อมูล';return;}
+  if(!r.items.length){msgEl.textContent='ยังไม่มีข้อมูล กรุณากรอกอย่างน้อย 1 กลุ่ม';return;}
+  msgEl.textContent='';
+  resultEl.style.display='block';
+  draw(r.items,
+    document.getElementById('chartTitle').value.trim(),
+    document.getElementById('unitInput').value.trim(),
+    document.getElementById('avgChk').checked,
+    showDiff,chartLabels());
+  if(scroll) resultEl.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+document.getElementById('runBtn').onclick=function(){render(true);};
+
+function rerender(){
+  if(resultEl.style.display==='block') render(false);
+}
+document.getElementById('avgChk').onchange=rerender;
+document.getElementById('langBtn').onclick=function(){setLang(lang==='th'?'en':'th');rerender();};
+document.getElementById('diffBtn').onclick=function(){setDiff(!showDiff);rerender();};
+['startLabel','endLabel'].forEach(function(id){
+  const el=document.getElementById(id);
+  el.addEventListener('input',applyLabels);
+  el.addEventListener('change',rerender);
+});
+
+document.getElementById('dlBtn').onclick=function(){
+  canvas.toBlob(function(blob){
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download='dumbbell-plot.png';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function(){URL.revokeObjectURL(a.href);},1000);
+  },'image/png');
+};
+
+resetAll();
+</script>
+</body>
+</html>
